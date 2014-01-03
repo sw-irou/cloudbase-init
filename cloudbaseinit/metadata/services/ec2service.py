@@ -16,12 +16,26 @@
 
 import posixpath
 import urllib2
+import time
 import traceback
 import os
+import wmi
 
 from cloudbaseinit.metadata.services import base
 from cloudbaseinit.openstack.common import cfg
 from cloudbaseinit.openstack.common import log as logging
+
+# Get the default gateway
+wmi_obj = wmi.WMI()
+wmi_sql = "select DefaultIPGateway from Win32_NetworkAdapterConfiguration where IPEnabled=TRUE" # noqa
+wmi_out = wmi_obj.query(wmi_sql)
+default_gateway = ''
+for adapter in wmi_out:
+    try:
+        default_gateway = adapter.DefaultIPGateway[0]
+        break
+    except TypeError:
+        pass
 
 opts = [
     cfg.StrOpt('ec2_metadata_base_url',
@@ -40,6 +54,10 @@ ec2nodes = [
 
 CONF = cfg.CONF
 CONF.register_opts(opts)
+CONF.ec2_metadata_base_url = CONF.ec2_metadata_base_url.replace(
+    '%default_gateway%',
+    default_gateway
+)
 
 LOG = logging.getLogger(__name__)
 
