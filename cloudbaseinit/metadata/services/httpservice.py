@@ -26,12 +26,15 @@ from cloudbaseinit.osutils import factory as osutils_factory
 
 # Get the default gateway
 wmi_obj = wmi.WMI()
-wmi_sql = "select DefaultIPGateway from Win32_NetworkAdapterConfiguration where IPEnabled=TRUE"  # noqa
+wmi_sql = "select DefaultIPGateway from Win32_NetworkAdapterConfiguration where IPEnabled=TRUE" # noqa
 wmi_out = wmi_obj.query(wmi_sql)
-if len(wmi_out) > 0:
-    default_gateway = wmi_out[0].DefaultIPGateway[0]
-else:
-    default_gateway = ''
+default_gateway = ''
+for adapter in wmi_out:
+    try:
+        default_gateway = adapter.DefaultIPGateway[0]
+        break
+    except TypeError:
+        pass
 
 opts = [
     cfg.StrOpt('metadata_base_url', default='http://169.254.169.254/',
