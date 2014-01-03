@@ -15,7 +15,6 @@
 #    under the License.
 
 import posixpath
-import string
 import urllib2
 import urlparse
 import wmi
@@ -30,28 +29,19 @@ wmi_obj = wmi.WMI()
 wmi_sql = "select DefaultIPGateway from Win32_NetworkAdapterConfiguration where IPEnabled=TRUE"  # noqa
 wmi_out = wmi_obj.query(wmi_sql)
 if len(wmi_out) > 0:
-    default_gateway = {
-        'default_gateway': wmi_out[0].DefaultIPGateway[0],
-    }
+    default_gateway = wmi_out[0].DefaultIPGateway[0]
 else:
-    default_gateway = {
-        'default_gateway': '',
-    }
-
-metadata_base_url_template = cfg.StrOpt(
-    'metadata_base_url',
-    default='http://169.254.169.254/',
-    help='The base URL where the service looks for metadata'
-)
-metadata_base_url_template = string.Template(metadata_base_url_template)
-metadata_base_url = metadata_base_url_template.substitute(default_gateway)
+    default_gateway = ''
 
 opts = [
-    metadata_base_url,
+    cfg.StrOpt('metadata_base_url', default='http://169.254.169.254/',
+               help='The base URL where the service looks for metadata'),
 ]
 
 CONF = cfg.CONF
 CONF.register_opts(opts)
+CONF.metadata_base_url = CONF.metadata_base_url.replace('%default_gateway%',
+                                                        default_gateway)
 
 LOG = logging.getLogger(__name__)
 
