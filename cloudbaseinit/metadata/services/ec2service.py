@@ -16,26 +16,11 @@
 
 import posixpath
 import urllib2
-import time
 import traceback
-import os
-import wmi
 
 from cloudbaseinit.metadata.services import base
 from cloudbaseinit.openstack.common import cfg
 from cloudbaseinit.openstack.common import log as logging
-
-# Get the default gateway
-wmi_obj = wmi.WMI()
-wmi_sql = "select DefaultIPGateway from Win32_NetworkAdapterConfiguration where IPEnabled=TRUE" # noqa
-wmi_out = wmi_obj.query(wmi_sql)
-default_gateway = ''
-for adapter in wmi_out:
-    try:
-        default_gateway = adapter.DefaultIPGateway[0]
-        break
-    except TypeError:
-        pass
 
 opts = [
     cfg.StrOpt('ec2_metadata_base_url',
@@ -54,10 +39,6 @@ ec2nodes = [
 
 CONF = cfg.CONF
 CONF.register_opts(opts)
-CONF.ec2_metadata_base_url = CONF.ec2_metadata_base_url.replace(
-    '%default_gateway%',
-    default_gateway
-)
 
 LOG = logging.getLogger(__name__)
 
@@ -77,7 +58,7 @@ class EC2Service(base.BaseMetadataService):
             LOG.debug(err)
             LOG.debug(traceback.format_exc())
             LOG.debug('Metadata not found at URL \'%s\'' %
-                      CONF.ec2_metadata_base_url)
+                      self._get_metadata_base_url(CONF.ec2_metadata_base_url))
             return False
 
     def _get_data(self, path):
@@ -98,7 +79,10 @@ class EC2Service(base.BaseMetadataService):
             self._load_public_keys(data)
 
         if path.endswith('user_data'):
-            norm_path = posixpath.join(CONF.ec2_metadata_base_url, 'user-data')
+            norm_path = posixpath.join(
+                self._get_metadata_base_url(CONF.ec2_metadata_base_url),
+                'user-data'
+            )
             LOG.debug('Getting metadata from: %(norm_path)s' % locals())
             try:
                 req = urllib2.Request(norm_path)
@@ -118,7 +102,10 @@ class EC2Service(base.BaseMetadataService):
 
     def _get_EC2_value(self, key):
         meta_path = posixpath.join(
-            CONF.ec2_metadata_base_url, 'meta-data', key)
+            self._get_metadata_base_url(CONF.ec2_metadata_base_url),
+            'meta-data',
+            key
+        )
         req = urllib2.Request(meta_path)
         response = urllib2.urlopen(req)
         return response.read()

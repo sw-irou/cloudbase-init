@@ -18,6 +18,7 @@ import abc
 import json
 import posixpath
 import time
+import wmi
 
 from cloudbaseinit.openstack.common import cfg
 from cloudbaseinit.openstack.common import log as logging
@@ -121,3 +122,38 @@ class BaseMetadataService(object):
 
     def cleanup(self):
         pass
+
+    def _get_default_gateway(self):
+        """
+            Discover the default gateway for this host.
+            Initially for cloudstack.
+        """
+        wmi_obj = wmi.WMI()
+        wmi_sql = "select DefaultIPGateway from Win32_NetworkAdapterConfiguration where IPEnabled=TRUE"  # noqa
+        wmi_out = wmi_obj.query(wmi_sql)
+        default_gateway = ''
+        for adapter in wmi_out:
+            try:
+                default_gateway = adapter.DefaultIPGateway[0]
+                break
+            except TypeError:
+                # No default gateway on this interface, keep trying
+                pass
+
+        LOG.debug('Found default gateway %s' % default_gateway)
+        return default_gateway
+
+    def _get_metadata_base_url(self, metadata_base_url):
+        """
+            Return the metadata base URL with any required substitutions.
+        """
+        if '%default_gateway%' in metadata_base_url:
+            LOG.debug('Looking for default gateway for metadata base URL')
+
+            # Wrapped in an 'if' to avoid unnecessary WMI queries
+            metadata_base_url = metadata_base_url.replace(
+                '%default_gateway%',
+                self._get_default_gateway(),
+            )
+
+        return metadata_base_url

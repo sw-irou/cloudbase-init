@@ -24,18 +24,6 @@ from cloudbaseinit.openstack.common import cfg
 from cloudbaseinit.openstack.common import log as logging
 from cloudbaseinit.osutils import factory as osutils_factory
 
-# Get the default gateway
-wmi_obj = wmi.WMI()
-wmi_sql = "select DefaultIPGateway from Win32_NetworkAdapterConfiguration where IPEnabled=TRUE" # noqa
-wmi_out = wmi_obj.query(wmi_sql)
-default_gateway = ''
-for adapter in wmi_out:
-    try:
-        default_gateway = adapter.DefaultIPGateway[0]
-        break
-    except TypeError:
-        pass
-
 opts = [
     cfg.StrOpt('metadata_base_url', default='http://169.254.169.254/',
                help='The base URL where the service looks for metadata'),
@@ -43,8 +31,6 @@ opts = [
 
 CONF = cfg.CONF
 CONF.register_opts(opts)
-CONF.metadata_base_url = CONF.metadata_base_url.replace('%default_gateway%',
-                                                        default_gateway)
 
 LOG = logging.getLogger(__name__)
 
@@ -90,7 +76,7 @@ class HttpService(base.BaseMetadataService):
             return True
         except:
             LOG.debug('Metadata not found at URL \'%s\'' %
-                      CONF.metadata_base_url)
+                      self._get_metadata_base_url(CONF.metadata_base_url))
             return False
 
     @property
@@ -107,14 +93,20 @@ class HttpService(base.BaseMetadataService):
                 raise
 
     def _get_data(self, path):
-        norm_path = posixpath.join(CONF.metadata_base_url, path)
+        norm_path = posixpath.join(
+            self._get_metadata_base_url(CONF.metadata_base_url),
+            path
+        )
         LOG.debug('Getting metadata from: %(norm_path)s' % locals())
         req = urllib2.Request(norm_path)
         response = self._get_response(req)
         return response.read()
 
     def _post_data(self, path, data):
-        norm_path = posixpath.join(CONF.metadata_base_url, path)
+        norm_path = posixpath.join(
+            self._get_metadata_base_url(CONF.metadata_base_url),
+            path
+        )
         LOG.debug('Posting metadata to: %(norm_path)s' % locals())
         req = urllib2.Request(norm_path, data=data)
         self._get_response(req)
